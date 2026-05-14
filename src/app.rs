@@ -236,12 +236,15 @@ impl App {
             self.sim_speed = (self.sim_speed * 0.5).max(0.1);
         }
 
-        // Material selection: 1-5
+        // Material selection: 1-8
         if self.input.just_pressed(KeyCode::Digit1) { self.selected_material = Cell::Sand; }
         if self.input.just_pressed(KeyCode::Digit2) { self.selected_material = Cell::Water; }
         if self.input.just_pressed(KeyCode::Digit3) { self.selected_material = Cell::Stone; }
         if self.input.just_pressed(KeyCode::Digit4) { self.selected_material = Cell::Fire; }
-        if self.input.just_pressed(KeyCode::Digit5) { self.selected_material = Cell::Steam; }
+        if self.input.just_pressed(KeyCode::Digit5) { self.selected_material = Cell::Gravel; }
+        if self.input.just_pressed(KeyCode::Digit6) { self.selected_material = Cell::Oil; }
+        if self.input.just_pressed(KeyCode::Digit7) { self.selected_material = Cell::Acid; }
+        if self.input.just_pressed(KeyCode::Digit8) { self.selected_material = Cell::Steam; }
 
         // Timeline scrubbing when paused
         if self.paused {
@@ -390,6 +393,9 @@ impl App {
                                 Cell::Stone => CellData::stone(self.rng.random()),
                                 Cell::Fire => CellData::fire(self.rng.random_range(60..120)),
                                 Cell::Steam => CellData::steam(self.rng.random_range(40..80)),
+                                Cell::Gravel => CellData::gravel(self.rng.random()),
+                                Cell::Oil => CellData::oil(self.rng.random()),
+                                Cell::Acid => CellData::acid(self.rng.random_range(60..100)),
                                 _ => CellData::sand(self.rng.random()),
                             };
                             self.grid2d.set(ux, uy, cell);
@@ -452,6 +458,9 @@ impl App {
                                                 Cell::Stone => CellData::stone(self.rng.random()),
                                                 Cell::Fire => CellData::fire(self.rng.random_range(60..120)),
                                                 Cell::Steam => CellData::steam(self.rng.random_range(40..80)),
+                                                Cell::Gravel => CellData::gravel(self.rng.random()),
+                                                Cell::Oil => CellData::oil(self.rng.random()),
+                                                Cell::Acid => CellData::acid(self.rng.random_range(60..100)),
                                                 _ => CellData::sand(self.rng.random()),
                                             };
                                             self.grid3d.set(unx, uny, unz, cell);

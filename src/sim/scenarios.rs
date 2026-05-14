@@ -16,6 +16,14 @@ pub const SCENARIO_NAMES_2D: &[&str] = &[
     "Dam Break",
     "Lava Flow",
     "Layer Cake",
+    "Dual Sand Sort",
+    "Oil Spill",
+    "Acid Rain",
+    "Erosion Cliff",
+    "Geyser",
+    "River Delta",
+    "Sandstorm",
+    "Explosion",
 ];
 
 pub const SCENARIO_NAMES_3D: &[&str] = &[
@@ -29,6 +37,14 @@ pub const SCENARIO_NAMES_3D: &[&str] = &[
     "Dam Break 3D",
     "Lava Flow 3D",
     "Layer Cake 3D",
+    "Dual Sand Sort 3D",
+    "Oil Spill 3D",
+    "Acid Rain 3D",
+    "Erosion Cliff 3D",
+    "Geyser 3D",
+    "River Delta 3D",
+    "Sandstorm 3D",
+    "Explosion 3D",
 ];
 
 pub fn apply_2d(index: usize, grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
@@ -44,6 +60,14 @@ pub fn apply_2d(index: usize, grid: &mut Grid2D, block: &mut Block2D, rng: &mut 
         7 => dam_break_2d(grid, block, rng),
         8 => lava_flow_2d(grid, block, rng),
         9 => layer_cake_2d(grid, block, rng),
+        10 => dual_sand_sort_2d(grid, block, rng),
+        11 => oil_spill_2d(grid, block, rng),
+        12 => acid_rain_2d(grid, block, rng),
+        13 => erosion_cliff_2d(grid, block, rng),
+        14 => geyser_2d(grid, block, rng),
+        15 => river_delta_2d(grid, block, rng),
+        16 => sandstorm_2d(grid, block),
+        17 => explosion_2d(grid, block, rng),
         _ => unreachable!(),
     }
     block.rasterize(grid);
@@ -62,6 +86,14 @@ pub fn apply_3d(index: usize, grid: &mut Grid3D, block: &mut Block3D, rng: &mut 
         7 => dam_break_3d(grid, block, rng),
         8 => lava_flow_3d(grid, block, rng),
         9 => layer_cake_3d(grid, block, rng),
+        10 => dual_sand_sort_3d(grid, block, rng),
+        11 => oil_spill_3d(grid, block, rng),
+        12 => acid_rain_3d(grid, block, rng),
+        13 => erosion_cliff_3d(grid, block, rng),
+        14 => geyser_3d(grid, block, rng),
+        15 => river_delta_3d(grid, block, rng),
+        16 => sandstorm_3d(grid, block),
+        17 => explosion_3d(grid, block, rng),
         _ => unreachable!(),
     }
     block.rasterize(grid);
@@ -219,6 +251,153 @@ fn layer_cake_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
     *block = Block2D::new(grid.w as f32 / 2.0, grid.h as f32 / 2.0, 40.0, 20.0);
 }
 
+fn dual_sand_sort_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let wall_x = grid.w / 2;
+    let wall_w = 6;
+    let fill_top = grid.h / 4;
+    let gap_h = 80;
+    let gap_top = grid.h - gap_h - 40;
+    for y in 0..grid.h {
+        if y >= gap_top && y < gap_top + gap_h { continue; }
+        for wx in 0..wall_w {
+            grid.set(wall_x + wx, y, CellData::stone(rng.random()));
+        }
+    }
+    for y in fill_top..grid.h {
+        for x in 0..wall_x { grid.set(x, y, CellData::gravel(rng.random())); }
+    }
+    for y in fill_top..grid.h {
+        for x in (wall_x + wall_w)..grid.w { grid.set(x, y, CellData::sand(rng.random())); }
+    }
+    *block = Block2D::new(
+        wall_x as f32 + 3.0, (gap_top + gap_h / 2) as f32,
+        wall_w as f32 / 2.0 + 1.0, gap_h as f32 / 2.0 + 1.0,
+    );
+}
+
+fn oil_spill_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let w = grid.w;
+    let h = grid.h;
+    let left = w / 4;
+    let right = w * 3 / 4;
+    let top = h / 2;
+    let wall_t = 8;
+    for x in left..right {
+        for dy in 0..wall_t { grid.set(x, h - 1 - dy, CellData::stone(rng.random())); }
+    }
+    for y in top..h {
+        for dx in 0..wall_t {
+            grid.set(left + dx, y, CellData::stone(rng.random()));
+            grid.set(right - 1 - dx, y, CellData::stone(rng.random()));
+        }
+    }
+    for y in (top + 80)..(h - wall_t) {
+        for x in (left + wall_t)..(right - wall_t) { grid.set(x, y, CellData::water(rng.random())); }
+    }
+    for y in (top + 50)..(top + 80) {
+        for x in (left + wall_t)..(right - wall_t) { grid.set(x, y, CellData::oil(rng.random())); }
+    }
+    *block = Block2D::new(w as f32 / 2.0, top as f32 - 40.0, 30.0, 15.0);
+}
+
+fn acid_rain_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let w = grid.w;
+    let h = grid.h;
+    let pillar_w = 30;
+    let spacing = w / 6;
+    for i in 1..=5usize {
+        let px = i * spacing;
+        let top = h / 3 + (i % 3) * 60;
+        for y in top..h {
+            for dx in 0..pillar_w {
+                let x = px.saturating_sub(pillar_w / 2) + dx;
+                if x < w { grid.set(x, y, CellData::stone(rng.random())); }
+            }
+        }
+    }
+    let arch_y = h * 2 / 3;
+    for x in (2 * spacing)..(4 * spacing).min(w) {
+        for dy in 0..12 { grid.set(x, arch_y + dy, CellData::stone(rng.random())); }
+    }
+    *block = Block2D::new(w as f32 / 2.0, h as f32 / 5.0, 25.0, 12.0);
+}
+
+fn erosion_cliff_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let w = grid.w;
+    let h = grid.h;
+    let cliff_w = w / 3;
+    let cliff_top = h / 6;
+    for y in cliff_top..h {
+        for x in 0..cliff_w { grid.set(x, y, CellData::stone(rng.random())); }
+    }
+    for y in (cliff_top - 30)..cliff_top {
+        for x in 0..cliff_w { grid.set(x, y, CellData::water(rng.random())); }
+    }
+    *block = Block2D::new(w as f32 * 0.6, h as f32 / 2.0, 25.0, 15.0);
+}
+
+fn geyser_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let cx = grid.w / 2;
+    let h = grid.h;
+    let cone_top = h / 2;
+    let cone_base_hw = grid.w / 4;
+    for y in cone_top..h {
+        let frac = (y - cone_top) as f32 / (h - cone_top) as f32;
+        let hw = (frac * cone_base_hw as f32) as usize;
+        for x in cx.saturating_sub(hw)..=(cx + hw).min(grid.w - 1) {
+            grid.set(x, y, CellData::stone(rng.random()));
+        }
+    }
+    let channel_hw = 4;
+    for y in cone_top..(h - 20) {
+        for x in cx.saturating_sub(channel_hw)..=(cx + channel_hw).min(grid.w - 1) {
+            grid.set(x, y, CellData::AIR);
+        }
+    }
+    *block = Block2D::new(grid.w as f32 * 0.8, h as f32 * 0.3, 20.0, 12.0);
+}
+
+fn river_delta_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let w = grid.w;
+    let h = grid.h;
+    for y in (h / 2)..h {
+        for x in 0..w { grid.set(x, y, CellData::sand(rng.random())); }
+    }
+    for y in (h / 4)..h {
+        let wobble = ((y as f32 * 0.03).sin() * 40.0) as i32;
+        let cx = w as i32 / 4 + wobble;
+        for dx in -30..30 {
+            let x = (cx + dx).clamp(0, w as i32 - 1) as usize;
+            grid.set(x, y, CellData::AIR);
+        }
+    }
+    *block = Block2D::new(w as f32 * 0.7, h as f32 * 0.3, 25.0, 12.0);
+}
+
+fn sandstorm_2d(grid: &mut Grid2D, block: &mut Block2D) {
+    *block = Block2D::new(grid.w as f32 / 3.0, grid.h as f32 / 2.0, 40.0, 20.0);
+}
+
+fn explosion_2d(grid: &mut Grid2D, block: &mut Block2D, rng: &mut impl Rng) {
+    let cx = grid.w as f32 / 2.0;
+    let cy = grid.h as f32 / 2.0;
+    let fire_r = (grid.w.min(grid.h) as f32 / 5.0).min(150.0);
+    let sand_r = fire_r + 80.0;
+    for y in 0..grid.h {
+        for x in 0..grid.w {
+            let dx = x as f32 - cx;
+            let dy = y as f32 - cy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            if dist <= fire_r {
+                grid.set(x, y, CellData::fire(rng.random_range(80..150)));
+            } else if dist <= sand_r {
+                grid.set(x, y, CellData::sand(rng.random()));
+            }
+        }
+    }
+    *block = Block2D::new(grid.w as f32 * 0.85, grid.h as f32 * 0.15, 25.0, 15.0);
+}
+
 // ===================== 3D SCENARIOS =====================
 
 fn pyramid_on_floor_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
@@ -356,6 +535,151 @@ fn layer_cake_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
     *block = Block3D::new(grid.sx as f32 / 2.0, grid.sy as f32 / 2.0, grid.sz as f32 / 2.0, 10.0, 10.0, 10.0);
 }
 
+fn dual_sand_sort_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let wall_x = grid.sx / 2;
+    let wall_w = 3;
+    let fill_h = grid.sy * 3 / 4;
+    let gap_h = 12;
+    let gap_bot = 2;
+    for y in 0..grid.sy {
+        if y >= gap_bot && y < gap_bot + gap_h { continue; }
+        for z in 0..grid.sz { for wx in 0..wall_w {
+            grid.set(wall_x + wx, y, z, CellData::stone(rng.random()));
+        }}
+    }
+    for y in 0..fill_h { for z in 0..grid.sz { for x in 0..wall_x {
+        grid.set(x, y, z, CellData::gravel(rng.random()));
+    }}}
+    for y in 0..fill_h { for z in 0..grid.sz { for x in (wall_x + wall_w)..grid.sx {
+        grid.set(x, y, z, CellData::sand(rng.random()));
+    }}}
+    *block = Block3D::new(
+        wall_x as f32 + 1.5, (gap_bot + gap_h / 2) as f32, grid.sz as f32 / 2.0,
+        wall_w as f32 / 2.0 + 0.5, gap_h as f32 / 2.0 + 0.5, grid.sz as f32 / 2.0,
+    );
+}
+
+fn oil_spill_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let cx = grid.sx as f32 / 2.0;
+    let cz = grid.sz as f32 / 2.0;
+    let basin_r = grid.sx as f32 / 3.0;
+    let wall_h = grid.sy / 3;
+    for y in 0..wall_h { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dz = z as f32 - cz;
+        let dist = (dx * dx + dz * dz).sqrt();
+        if y == 0 && dist < basin_r { grid.set(x, y, z, CellData::stone(rng.random())); }
+        if dist >= basin_r - 2.0 && dist <= basin_r { grid.set(x, y, z, CellData::stone(rng.random())); }
+    }}}
+    for y in 1..(wall_h - 6) { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dz = z as f32 - cz;
+        if (dx * dx + dz * dz).sqrt() < basin_r - 3.0 {
+            grid.set(x, y, z, CellData::water(rng.random()));
+        }
+    }}}
+    for y in (wall_h - 6)..(wall_h - 3) { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dz = z as f32 - cz;
+        if (dx * dx + dz * dz).sqrt() < basin_r - 3.0 {
+            grid.set(x, y, z, CellData::oil(rng.random()));
+        }
+    }}}
+    *block = Block3D::new(cx, wall_h as f32 + 5.0, cz, 8.0, 6.0, 8.0);
+}
+
+fn acid_rain_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let n = 4usize;
+    let sp_x = grid.sx / (n + 1);
+    let sp_z = grid.sz / (n + 1);
+    for i in 1..=n { for j in 1..=n {
+        let px = i * sp_x;
+        let pz = j * sp_z;
+        let pillar_h = grid.sy / 3 + ((i + j) % 3) * (grid.sy / 10);
+        let pr = 4;
+        for y in 0..pillar_h {
+            for z in pz.saturating_sub(pr)..(pz + pr).min(grid.sz) {
+                for x in px.saturating_sub(pr)..(px + pr).min(grid.sx) {
+                    grid.set(x, y, z, CellData::stone(rng.random()));
+                }
+            }
+        }
+    }}
+    *block = Block3D::new(grid.sx as f32 / 2.0, grid.sy as f32 * 0.7, grid.sz as f32 / 2.0, 8.0, 6.0, 8.0);
+}
+
+fn erosion_cliff_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let cliff_x = grid.sx / 3;
+    let cliff_top = grid.sy * 3 / 4;
+    for y in 0..cliff_top { for z in 0..grid.sz { for x in 0..cliff_x {
+        grid.set(x, y, z, CellData::stone(rng.random()));
+    }}}
+    for y in cliff_top..(cliff_top + 5) { for z in 4..(grid.sz - 4) { for x in 4..cliff_x {
+        grid.set(x, y, z, CellData::water(rng.random()));
+    }}}
+    *block = Block3D::new(grid.sx as f32 * 0.6, grid.sy as f32 / 2.0, grid.sz as f32 / 2.0, 8.0, 6.0, 8.0);
+}
+
+fn geyser_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let cx = grid.sx as f32 / 2.0;
+    let cz = grid.sz as f32 / 2.0;
+    let peak = grid.sy / 2;
+    let base_r = grid.sx as f32 / 3.0;
+    let channel_r = 4.0_f32;
+    for y in 0..peak { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dz = z as f32 - cz;
+        let dist = (dx * dx + dz * dz).sqrt();
+        let r = base_r * (1.0 - y as f32 / peak as f32);
+        if dist <= r { grid.set(x, y, z, CellData::stone(rng.random())); }
+    }}}
+    for y in 0..(peak - 3) { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dz = z as f32 - cz;
+        if (dx * dx + dz * dz).sqrt() < channel_r { grid.set(x, y, z, CellData::AIR); }
+    }}}
+    *block = Block3D::new(cx + 30.0, peak as f32, cz, 6.0, 6.0, 6.0);
+}
+
+fn river_delta_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    for y in 0..(grid.sy / 3) { for z in 0..grid.sz { for x in 0..grid.sx {
+        if rng.random_bool(0.7) { grid.set(x, y, z, CellData::sand(rng.random())); }
+    }}}
+    let channel_r = 8;
+    for y in 0..(grid.sy / 3) { for z in 0..grid.sz {
+        let cx = grid.sx / 4 + ((z as f32 / 10.0).sin() * 8.0) as usize;
+        for x in cx.saturating_sub(channel_r)..(cx + channel_r).min(grid.sx) {
+            grid.set(x, y, z, CellData::AIR);
+        }
+    }}
+    *block = Block3D::new(grid.sx as f32 * 0.7, grid.sy as f32 * 0.5, grid.sz as f32 / 2.0, 8.0, 6.0, 8.0);
+}
+
+fn sandstorm_3d(grid: &mut Grid3D, block: &mut Block3D) {
+    let _ = grid;
+    *block = Block3D::new(grid.sx as f32 / 2.0, grid.sy as f32 / 2.0, grid.sz as f32 / 2.0, 8.0, 8.0, 8.0);
+}
+
+fn explosion_3d(grid: &mut Grid3D, block: &mut Block3D, rng: &mut impl Rng) {
+    let cx = grid.sx as f32 / 2.0;
+    let cy = grid.sy as f32 / 2.0;
+    let cz = grid.sz as f32 / 2.0;
+    let fire_r = grid.sx as f32 / 5.0;
+    let sand_r = fire_r + 12.0;
+    for y in 0..grid.sy { for z in 0..grid.sz { for x in 0..grid.sx {
+        let dx = x as f32 - cx;
+        let dy = y as f32 - cy;
+        let dz = z as f32 - cz;
+        let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+        if dist <= fire_r {
+            grid.set(x, y, z, CellData::fire(rng.random_range(80..150)));
+        } else if dist <= sand_r {
+            grid.set(x, y, z, CellData::sand(rng.random()));
+        }
+    }}}
+    *block = Block3D::new(cx + sand_r + 5.0, cy, cz, 6.0, 6.0, 6.0);
+}
+
 // ===================== LIVE SPAWNERS =====================
 
 pub fn spawner_tick_2d(scenario: usize, grid: &mut Grid2D, rng: &mut impl Rng) {
@@ -363,6 +687,12 @@ pub fn spawner_tick_2d(scenario: usize, grid: &mut Grid2D, rng: &mut impl Rng) {
         3 => rain_sand_2d(grid, rng),
         5 => volcano_spawn_2d(grid, rng),
         6 => waterfall_spawn_2d(grid, rng),
+        11 => oil_spill_spawn_2d(grid, rng),
+        12 => acid_rain_spawn_2d(grid, rng),
+        13 => erosion_cliff_spawn_2d(grid, rng),
+        14 => geyser_spawn_2d(grid, rng),
+        15 => river_delta_spawn_2d(grid, rng),
+        16 => sandstorm_spawn_2d(grid, rng),
         _ => {}
     }
 }
@@ -372,6 +702,12 @@ pub fn spawner_tick_3d(scenario: usize, grid: &mut Grid3D, rng: &mut impl Rng) {
         3 => rain_sand_3d(grid, rng),
         5 => volcano_spawn_3d(grid, rng),
         6 => waterfall_spawn_3d(grid, rng),
+        11 => oil_spill_spawn_3d(grid, rng),
+        12 => acid_rain_spawn_3d(grid, rng),
+        13 => erosion_cliff_spawn_3d(grid, rng),
+        14 => geyser_spawn_3d(grid, rng),
+        15 => river_delta_spawn_3d(grid, rng),
+        16 => sandstorm_spawn_3d(grid, rng),
         _ => {}
     }
 }
@@ -406,6 +742,69 @@ fn waterfall_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
     }
 }
 
+fn oil_spill_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    let left = grid.w / 4 + 10;
+    let right = grid.w * 3 / 4 - 10;
+    for x in (left..right).step_by(4) {
+        if rng.random_bool(0.15) && grid.get(x, 0).kind == super::material::Cell::Air {
+            grid.set(x, 0, CellData::oil(rng.random()));
+        }
+    }
+}
+
+fn acid_rain_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    for x in (0..grid.w).step_by(3) {
+        if rng.random_bool(0.15) && grid.get(x, 0).kind == super::material::Cell::Air {
+            grid.set(x, 0, CellData::acid(rng.random_range(60..100)));
+        }
+    }
+}
+
+fn erosion_cliff_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    for x in 0..(grid.w / 3) {
+        if rng.random_bool(0.4) && grid.get(x, 0).kind == super::material::Cell::Air {
+            grid.set(x, 0, CellData::water(rng.random()));
+        }
+    }
+    for x in 10..(grid.w / 4) {
+        if rng.random_bool(0.05) && grid.get(x, 0).kind == super::material::Cell::Air {
+            grid.set(x, 0, CellData::acid(rng.random_range(60..100)));
+        }
+    }
+}
+
+fn geyser_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    let cx = grid.w / 2;
+    let bottom = grid.h - 25;
+    for dx in -4..=4i32 {
+        let x = (cx as i32 + dx).clamp(0, grid.w as i32 - 1) as usize;
+        if rng.random_bool(0.5) && grid.get(x, bottom).kind == super::material::Cell::Air {
+            if rng.random_bool(0.6) {
+                grid.set(x, bottom, CellData::water(rng.random()));
+            } else {
+                grid.set(x, bottom, CellData::steam(rng.random_range(60..120)));
+            }
+        }
+    }
+}
+
+fn river_delta_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    for x in 0..40 {
+        if rng.random_bool(0.5) && grid.get(x, 0).kind == super::material::Cell::Air {
+            grid.set(x, 0, CellData::water(rng.random()));
+        }
+    }
+}
+
+fn sandstorm_spawn_2d(grid: &mut Grid2D, rng: &mut impl Rng) {
+    let x = grid.w - 1;
+    for y in (0..grid.h).step_by(2) {
+        if rng.random_bool(0.6) && grid.get(x, y).kind == super::material::Cell::Air {
+            grid.set(x, y, CellData::sand(rng.random()));
+        }
+    }
+}
+
 fn rain_sand_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
     let top = grid.sy - 1;
     for z in (0..grid.sz).step_by(2) {
@@ -434,6 +833,78 @@ fn waterfall_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
     for z in 10..(grid.sz - 10) { for x in 2..8 {
         if rng.random_bool(0.3) && grid.get(x, ledge_y + 1, z).kind == super::material::Cell::Air {
             grid.set(x, ledge_y + 1, z, CellData::water(rng.random()));
+        }
+    }}
+}
+
+fn oil_spill_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let cx = grid.sx / 2;
+    let cz = grid.sz / 2;
+    let top = grid.sy - 1;
+    for dz in -5..=5i32 { for dx in -5..=5i32 {
+        let x = (cx as i32 + dx).clamp(0, grid.sx as i32 - 1) as usize;
+        let z = (cz as i32 + dz).clamp(0, grid.sz as i32 - 1) as usize;
+        if rng.random_bool(0.15) && grid.get(x, top, z).kind == super::material::Cell::Air {
+            grid.set(x, top, z, CellData::oil(rng.random()));
+        }
+    }}
+}
+
+fn acid_rain_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let top = grid.sy - 1;
+    for z in (0..grid.sz).step_by(3) { for x in (0..grid.sx).step_by(3) {
+        if rng.random_bool(0.05) && grid.get(x, top, z).kind == super::material::Cell::Air {
+            grid.set(x, top, z, CellData::acid(rng.random_range(60..100)));
+        }
+    }}
+}
+
+fn erosion_cliff_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let top = grid.sy - 1;
+    let cliff_x = grid.sx / 3;
+    for z in 4..(grid.sz - 4) { for x in 4..cliff_x {
+        if rng.random_bool(0.1) && grid.get(x, top, z).kind == super::material::Cell::Air {
+            grid.set(x, top, z, CellData::water(rng.random()));
+        }
+    }}
+    for z in 10..(grid.sz - 10) { for x in 2..(cliff_x / 2) {
+        if rng.random_bool(0.02) && grid.get(x, top, z).kind == super::material::Cell::Air {
+            grid.set(x, top, z, CellData::acid(rng.random_range(60..100)));
+        }
+    }}
+}
+
+fn geyser_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let cx = grid.sx / 2;
+    let cz = grid.sz / 2;
+    let bottom = 3;
+    for dz in -3..=3i32 { for dx in -3..=3i32 {
+        let x = (cx as i32 + dx).clamp(0, grid.sx as i32 - 1) as usize;
+        let z = (cz as i32 + dz).clamp(0, grid.sz as i32 - 1) as usize;
+        if rng.random_bool(0.3) && grid.get(x, bottom, z).kind == super::material::Cell::Air {
+            if rng.random_bool(0.6) {
+                grid.set(x, bottom, z, CellData::water(rng.random()));
+            } else {
+                grid.set(x, bottom, z, CellData::steam(rng.random_range(60..120)));
+            }
+        }
+    }}
+}
+
+fn river_delta_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let top = grid.sy - 1;
+    for z in 4..(grid.sz - 4) { for x in 0..8 {
+        if rng.random_bool(0.2) && grid.get(x, top, z).kind == super::material::Cell::Air {
+            grid.set(x, top, z, CellData::water(rng.random()));
+        }
+    }}
+}
+
+fn sandstorm_spawn_3d(grid: &mut Grid3D, rng: &mut impl Rng) {
+    let x = grid.sx - 1;
+    for z in (0..grid.sz).step_by(2) { for y in (0..grid.sy).step_by(2) {
+        if rng.random_bool(0.15) && grid.get(x, y, z).kind == super::material::Cell::Air {
+            grid.set(x, y, z, CellData::sand(rng.random()));
         }
     }}
 }

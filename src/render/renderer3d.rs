@@ -265,9 +265,21 @@ impl Renderer3D {
                     if !grid.is_surface(x, y, z) {
                         continue;
                     }
+                    let mut neighbor_count = 0u32;
+                    for (dx, dy, dz) in [(1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)] {
+                        let nx = x as i32 + dx; let ny = y as i32 + dy; let nz = z as i32 + dz;
+                        if grid.in_bounds(nx, ny, nz) {
+                            if grid.cells[grid.idx(nx as usize, ny as usize, nz as usize)].kind != Cell::Air {
+                                neighbor_count += 1;
+                            }
+                        }
+                    }
+                    let ao = 1.0 - neighbor_count as f32 * 0.08;
+                    let c = cell.to_rgba_f32();
+                    let color = [c[0] * ao, c[1] * ao, c[2] * ao, c[3]];
                     instances.push(VoxelInstance {
                         offset: [x as f32, y as f32, z as f32],
-                        color: cell.to_rgba_f32(),
+                        color,
                     });
                 }
             }

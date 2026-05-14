@@ -48,14 +48,17 @@ pub fn draw(
                     ui.separator();
 
                     // Material palette
-                    ui.label(egui::RichText::new("Material (1-5)").strong());
-                    ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("Material (1-8)").strong());
+                    ui.horizontal_wrapped(|ui| {
                         let mats = [
-                            (Cell::Sand, "Sand", egui::Color32::from_rgb(200, 185, 125)),
-                            (Cell::Water, "Water", egui::Color32::from_rgb(50, 100, 200)),
-                            (Cell::Stone, "Stone", egui::Color32::from_rgb(110, 112, 115)),
-                            (Cell::Fire, "Fire", egui::Color32::from_rgb(240, 160, 30)),
-                            (Cell::Steam, "Steam", egui::Color32::from_rgb(200, 200, 210)),
+                            (Cell::Sand, "Sand", egui::Color32::from_rgb(210, 190, 128)),
+                            (Cell::Water, "Water", egui::Color32::from_rgb(40, 90, 200)),
+                            (Cell::Stone, "Stone", egui::Color32::from_rgb(112, 114, 118)),
+                            (Cell::Fire, "Fire", egui::Color32::from_rgb(245, 165, 30)),
+                            (Cell::Gravel, "Gravel", egui::Color32::from_rgb(130, 115, 95)),
+                            (Cell::Oil, "Oil", egui::Color32::from_rgb(55, 40, 20)),
+                            (Cell::Acid, "Acid", egui::Color32::from_rgb(50, 200, 40)),
+                            (Cell::Steam, "Steam", egui::Color32::from_rgb(200, 200, 215)),
                         ];
                         for (mat, name, color) in mats {
                             let selected = *selected_material == mat;
@@ -158,7 +161,7 @@ pub fn draw(
                         ui.separator();
                         for line in [
                             "F2/F3 -- Switch 2D/3D",
-                            "1-5 -- Select material",
+                            "1-8 -- Select material",
                             "Space -- Pause/Resume",
                             "Left/Right -- Scrub time",
                             "Shift+L/R -- Jump 50 frames",
