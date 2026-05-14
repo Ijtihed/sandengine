@@ -95,7 +95,9 @@ impl Block2D {
         let mut failed = false;
         for &(x, y) in &new_cells {
             let i = grid.idx(x, y);
-            if grid.cells[i].kind == Cell::Sand {
+            let k = grid.cells[i].kind;
+            if k == Cell::Stone { failed = true; break; }
+            if k != Cell::Air && k != Cell::Block {
                 let cell_data = grid.cells[i];
                 grid.cells[i] = CellData::AIR;
                 if !bfs_push_2d(grid, x, y, &new_set, cell_data) {
@@ -155,11 +157,12 @@ fn bfs_push_2d(
             }
             visited.insert((ux, uy));
             let ni = grid.idx(ux, uy);
-            if grid.cells[ni].kind == Cell::Air {
+            let nk = grid.cells[ni].kind;
+            if nk == Cell::Air {
                 grid.cells[ni] = cell_data;
                 return true;
             }
-            if grid.cells[ni].kind == Cell::Sand {
+            if nk != Cell::Stone && nk != Cell::Block {
                 queue.push_back((ux, uy));
             }
         }
@@ -280,7 +283,9 @@ impl Block3D {
         let mut failed = false;
         for &(x, y, z) in &new_cells {
             let i = grid.idx(x, y, z);
-            if grid.cells[i].kind == Cell::Sand {
+            let k = grid.cells[i].kind;
+            if k == Cell::Stone { failed = true; break; }
+            if k != Cell::Air && k != Cell::Block {
                 let cell_data = grid.cells[i];
                 grid.cells[i] = CellData::AIR;
                 if !bfs_push_3d(grid, x, y, z, &new_set, cell_data) {
@@ -348,11 +353,12 @@ fn bfs_push_3d(
             }
             visited.insert((ux, uy, uz));
             let ni = grid.idx(ux, uy, uz);
-            if grid.cells[ni].kind == Cell::Air {
+            let nk = grid.cells[ni].kind;
+            if nk == Cell::Air {
                 grid.cells[ni] = cell_data;
                 return true;
             }
-            if grid.cells[ni].kind == Cell::Sand {
+            if nk != Cell::Stone && nk != Cell::Block {
                 queue.push_back((ux, uy, uz));
             }
         }

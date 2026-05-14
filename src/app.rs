@@ -41,7 +41,6 @@ pub struct App {
     timeline2d: Timeline2D,
     scenario2d: usize,
     renderer2d: Renderer2D,
-    rain_2d: bool,
 
     // 3D
     grid3d: Grid3D,
@@ -50,13 +49,13 @@ pub struct App {
     scenario3d: usize,
     renderer3d: Renderer3D,
     camera: OrbitCamera,
-    rain_3d: bool,
-    drag_plane: Option<(Vec3, Vec3)>, // (point_on_plane, normal)
+    drag_plane: Option<(Vec3, Vec3)>,
 
     // Input & UI
     input: InputState,
     ui_state: UiState,
     brush_size: u32,
+    selected_material: Cell,
     egui_consumed: bool,
 
     // egui
@@ -128,18 +127,17 @@ impl App {
             timeline2d: Timeline2D::new(TIMELINE_CAP_2D),
             scenario2d: 0,
             renderer2d,
-            rain_2d: false,
             grid3d,
             block3d,
             timeline3d: Timeline3D::new(TIMELINE_CAP_3D),
             scenario3d: 0,
             renderer3d,
             camera,
-            rain_3d: false,
             drag_plane: None,
             input: InputState::new(),
             ui_state: UiState::new(),
             brush_size: 8,
+            selected_material: Cell::Sand,
             egui_consumed: false,
             egui_ctx,
             egui_state,
@@ -238,6 +236,13 @@ impl App {
             self.sim_speed = (self.sim_speed * 0.5).max(0.1);
         }
 
+        // Material selection: 1-5
+        if self.input.just_pressed(KeyCode::Digit1) { self.selected_material = Cell::Sand; }
+        if self.input.just_pressed(KeyCode::Digit2) { self.selected_material = Cell::Water; }
+        if self.input.just_pressed(KeyCode::Digit3) { self.selected_material = Cell::Stone; }
+        if self.input.just_pressed(KeyCode::Digit4) { self.selected_material = Cell::Fire; }
+        if self.input.just_pressed(KeyCode::Digit5) { self.selected_material = Cell::Steam; }
+
         // Timeline scrubbing when paused
         if self.paused {
             let jump = if self.input.shift_held { 50 } else { 1 };
@@ -300,7 +305,7 @@ impl App {
             let new_pos = Vec2::new(gx, gy) + self.block2d.grab_offset;
             self.block2d.move_and_displace(new_pos, &mut self.grid2d);
         } else if self.input.left_down() && !self.block2d.grabbed {
-            self.place_sand_2d(gx as i32, gy as i32);
+            self.place_material_2d(gx as i32, gy as i32);
         }
 
         // Right click: erase
@@ -367,8 +372,9 @@ impl App {
         }
     }
 
-    fn place_sand_2d(&mut self, cx: i32, cy: i32) {
+    fn place_material_2d(&mut self, cx: i32, cy: i32) {
         let r = self.brush_size as i32;
+        let mat = self.selected_material;
         for dy in -r..=r {
             for dx in -r..=r {
                 if dx * dx + dy * dy <= r * r {
@@ -378,8 +384,15 @@ impl App {
                         let ux = x as usize;
                         let uy = y as usize;
                         if self.grid2d.get(ux, uy).kind == Cell::Air {
-                            self.grid2d
-                                .set(ux, uy, CellData::sand(self.rng.random()));
+                            let cell = match mat {
+                                Cell::Sand => CellData::sand(self.rng.random()),
+                                Cell::Water => CellData::water(self.rng.random()),
+                                Cell::Stone => CellData::stone(self.rng.random()),
+                                Cell::Fire => CellData::fire(self.rng.random_range(60..120)),
+                                Cell::Steam => CellData::steam(self.rng.random_range(40..80)),
+                                _ => CellData::sand(self.rng.random()),
+                            };
+                            self.grid2d.set(ux, uy, cell);
                         }
                     }
                 }
@@ -433,12 +446,15 @@ impl App {
                                         let (unx, uny, unz) =
                                             (nx as usize, ny as usize, nz as usize);
                                         if self.grid3d.get(unx, uny, unz).kind == Cell::Air {
-                                            self.grid3d.set(
-                                                unx,
-                                                uny,
-                                                unz,
-                                                CellData::sand(self.rng.random()),
-                                            );
+                                            let cell = match self.selected_material {
+                                                Cell::Sand => CellData::sand(self.rng.random()),
+                                                Cell::Water => CellData::water(self.rng.random()),
+                                                Cell::Stone => CellData::stone(self.rng.random()),
+                                                Cell::Fire => CellData::fire(self.rng.random_range(60..120)),
+                                                Cell::Steam => CellData::steam(self.rng.random_range(40..80)),
+                                                _ => CellData::sand(self.rng.random()),
+                                            };
+                                            self.grid3d.set(unx, uny, unz, cell);
                                         }
                                     }
                                 }
@@ -473,23 +489,17 @@ impl App {
         match self.mode {
             Mode::D2 => {
                 self.block2d.clear_raster(&mut self.grid2d);
-                if self.rain_2d {
-                    scenarios::rain_tick_2d(&mut self.grid2d, &mut self.rng);
-                }
+                scenarios::spawner_tick_2d(self.scenario2d, &mut self.grid2d, &mut self.rng);
                 crate::sim::physics2d::step(&mut self.grid2d, &mut self.rng);
                 self.block2d.rasterize(&mut self.grid2d);
-                self.timeline2d
-                    .record(&self.grid2d.cells, &self.block2d);
+                self.timeline2d.record(&self.grid2d.cells, &self.block2d);
             }
             Mode::D3 => {
                 self.block3d.clear_raster(&mut self.grid3d);
-                if self.rain_3d {
-                    scenarios::rain_tick_3d(&mut self.grid3d, &mut self.rng);
-                }
+                scenarios::spawner_tick_3d(self.scenario3d, &mut self.grid3d, &mut self.rng);
                 crate::sim::physics3d::step(&mut self.grid3d, &mut self.rng);
                 self.block3d.rasterize(&mut self.grid3d);
-                self.timeline3d
-                    .record(&self.grid3d.cells, &self.block3d);
+                self.timeline3d.record(&self.grid3d.cells, &self.block3d);
             }
         }
         self.tick += 1;
@@ -513,12 +523,10 @@ impl App {
         match self.mode {
             Mode::D2 => {
                 scenarios::apply_2d(self.scenario2d, &mut self.grid2d, &mut self.block2d, &mut self.rng);
-                self.rain_2d = self.scenario2d == 3;
                 self.timeline2d.clear();
             }
             Mode::D3 => {
                 scenarios::apply_3d(self.scenario3d, &mut self.grid3d, &mut self.block3d, &mut self.rng);
-                self.rain_3d = self.scenario3d == 3;
                 self.timeline3d.clear();
             }
         }
@@ -558,8 +566,8 @@ impl App {
         let raw_input = self.egui_state.take_egui_input(&self.window);
 
         let sand_count = match self.mode {
-            Mode::D2 => self.grid2d.sand_count(),
-            Mode::D3 => self.grid3d.sand_count(),
+            Mode::D2 => self.grid2d.particle_count(),
+            Mode::D3 => self.grid3d.particle_count(),
         };
         let timeline_len = match self.mode {
             Mode::D2 => self.timeline2d.len(),
@@ -581,6 +589,7 @@ impl App {
         let brush_size = &mut self.brush_size;
         let sim_speed = &mut self.sim_speed;
         let ui_state = &mut self.ui_state;
+        let selected_mat = &mut self.selected_material;
 
         #[allow(deprecated)]
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
@@ -597,6 +606,7 @@ impl App {
                 &mut timeline_cursor_val,
                 timeline_len,
                 ui_state,
+                selected_mat,
             );
         });
 

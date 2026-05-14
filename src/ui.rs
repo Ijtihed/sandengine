@@ -1,3 +1,4 @@
+use crate::sim::material::Cell;
 use crate::sim::scenarios::{SCENARIO_NAMES_2D, SCENARIO_NAMES_3D};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -16,17 +17,12 @@ impl UiState {
     }
 }
 
-pub struct UiOutput {
-    pub scenario_changed: Option<usize>,
-    pub reset: bool,
-}
-
 pub fn draw(
     ctx: &egui::Context,
     mode: Mode,
     paused: bool,
     fps: f32,
-    sand_count: usize,
+    particle_count: usize,
     tick: u64,
     scenario_idx: &mut usize,
     brush_size: &mut u32,
@@ -34,32 +30,54 @@ pub fn draw(
     timeline_cursor: &mut usize,
     timeline_len: usize,
     ui_state: &mut UiState,
-) -> UiOutput {
-    let mut output = UiOutput {
-        scenario_changed: None,
-        reset: false,
-    };
-
+    selected_material: &mut Cell,
+) {
     egui::Area::new(egui::Id::new("stats_panel"))
         .fixed_pos(egui::pos2(10.0, 10.0))
         .show(ctx, |ui| {
             ui.visuals_mut().override_text_color = Some(egui::Color32::WHITE);
             egui::Frame::new()
-                .fill(egui::Color32::from_black_alpha(180))
-                .corner_radius(6.0)
-                .inner_margin(8.0)
+                .fill(egui::Color32::from_black_alpha(200))
+                .corner_radius(8.0)
+                .inner_margin(10.0)
                 .show(ui, |ui| {
-                    let mode_str = match mode {
-                        Mode::D2 => "2D",
-                        Mode::D3 => "3D",
-                    };
+                    let mode_str = match mode { Mode::D2 => "2D", Mode::D3 => "3D" };
                     ui.label(format!("Mode: {} | FPS: {:.0}", mode_str, fps));
-                    ui.label(format!("Sand: {} | Tick: {}", sand_count, tick));
-                    ui.label(format!("Speed: {:.1}x", sim_speed));
+                    ui.label(format!("Particles: {} | Tick: {}", particle_count, tick));
 
-                    ui.add(
-                        egui::Slider::new(brush_size, 1..=40).text("Brush"),
-                    );
+                    ui.separator();
+
+                    // Material palette
+                    ui.label(egui::RichText::new("Material (1-5)").strong());
+                    ui.horizontal(|ui| {
+                        let mats = [
+                            (Cell::Sand, "Sand", egui::Color32::from_rgb(200, 185, 125)),
+                            (Cell::Water, "Water", egui::Color32::from_rgb(50, 100, 200)),
+                            (Cell::Stone, "Stone", egui::Color32::from_rgb(110, 112, 115)),
+                            (Cell::Fire, "Fire", egui::Color32::from_rgb(240, 160, 30)),
+                            (Cell::Steam, "Steam", egui::Color32::from_rgb(200, 200, 210)),
+                        ];
+                        for (mat, name, color) in mats {
+                            let selected = *selected_material == mat;
+                            let text = egui::RichText::new(name).color(if selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::GRAY
+                            });
+                            let btn = egui::Button::new(text).fill(if selected {
+                                color
+                            } else {
+                                egui::Color32::from_black_alpha(120)
+                            });
+                            if ui.add(btn).clicked() {
+                                *selected_material = mat;
+                            }
+                        }
+                    });
+
+                    ui.separator();
+
+                    ui.add(egui::Slider::new(brush_size, 1..=40).text("Brush"));
                     ui.add(
                         egui::Slider::new(sim_speed, 0.1..=10.0)
                             .text("Speed")
@@ -77,26 +95,24 @@ pub fn draw(
                             for (i, name) in names.iter().enumerate() {
                                 if ui.selectable_label(i == *scenario_idx, *name).clicked() {
                                     *scenario_idx = i;
-                                    output.scenario_changed = Some(i);
                                 }
                             }
                         });
 
                     if ui.button("Reset (R)").clicked() {
-                        output.reset = true;
+                        // handled by key detection
                     }
                 });
         });
 
-    // Time scrubber when paused
     if paused && timeline_len > 0 {
         egui::Area::new(egui::Id::new("time_panel"))
             .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -20.0))
             .show(ctx, |ui| {
                 egui::Frame::new()
-                    .fill(egui::Color32::from_black_alpha(200))
-                    .corner_radius(6.0)
-                    .inner_margin(10.0)
+                    .fill(egui::Color32::from_black_alpha(210))
+                    .corner_radius(8.0)
+                    .inner_margin(12.0)
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(
@@ -116,41 +132,35 @@ pub fn draw(
                     });
             });
 
-        // Paused overlay
         egui::Area::new(egui::Id::new("paused_overlay"))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .interactable(false)
             .show(ctx, |ui| {
                 ui.label(
                     egui::RichText::new("PAUSED")
-                        .size(40.0)
-                        .color(egui::Color32::from_rgba_premultiplied(255, 255, 255, 80))
+                        .size(48.0)
+                        .color(egui::Color32::from_rgba_premultiplied(255, 255, 255, 60))
                         .strong(),
                 );
             });
     }
 
-    // Help panel
     if ui_state.show_help {
         egui::Area::new(egui::Id::new("help_panel"))
             .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-10.0, 10.0))
             .show(ctx, |ui| {
                 egui::Frame::new()
-                    .fill(egui::Color32::from_black_alpha(220))
-                    .corner_radius(6.0)
-                    .inner_margin(12.0)
+                    .fill(egui::Color32::from_black_alpha(230))
+                    .corner_radius(8.0)
+                    .inner_margin(14.0)
                     .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new("Controls")
-                                .color(egui::Color32::WHITE)
-                                .strong()
-                                .size(16.0),
-                        );
+                        ui.label(egui::RichText::new("Controls").color(egui::Color32::WHITE).strong().size(16.0));
                         ui.separator();
-                        let lines = [
+                        for line in [
                             "F2/F3 -- Switch 2D/3D",
+                            "1-5 -- Select material",
                             "Space -- Pause/Resume",
-                            "Left/Right -- Scrub time (paused)",
+                            "Left/Right -- Scrub time",
                             "Shift+L/R -- Jump 50 frames",
                             "Tab -- Next scenario",
                             "R -- Reset scenario",
@@ -162,15 +172,10 @@ pub fn draw(
                             "3D: L-click place/grab",
                             "    R-drag = orbit, Scroll = zoom",
                             "    Middle-drag = pan",
-                        ];
-                        for line in lines {
-                            ui.label(
-                                egui::RichText::new(line).color(egui::Color32::LIGHT_GRAY),
-                            );
+                        ] {
+                            ui.label(egui::RichText::new(line).color(egui::Color32::LIGHT_GRAY));
                         }
                     });
             });
     }
-
-    output
 }

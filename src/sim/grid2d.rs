@@ -51,7 +51,7 @@ impl Grid2D {
         self.moved.fill(false);
     }
 
-    pub fn sand_count(&self) -> usize {
-        self.cells.iter().filter(|c| c.kind == Cell::Sand).count()
+    pub fn particle_count(&self) -> usize {
+        self.cells.iter().filter(|c| c.kind != Cell::Air && c.kind != Cell::Block).count()
     }
 }
