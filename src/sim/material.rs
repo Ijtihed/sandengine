@@ -29,9 +29,6 @@ impl Cell {
             Cell::Block => 100,
         }
     }
-    pub fn is_pushable(self) -> bool {
-        !matches!(self, Cell::Air | Cell::Block | Cell::Stone)
-    }
 }
 
 #[repr(C)]
@@ -55,53 +52,94 @@ impl CellData {
     pub fn block() -> Self { Self { kind: Cell::Block, extra: 0 } }
 
     pub fn to_rgba(self) -> [u8; 4] {
+        let e = self.extra;
         match self.kind {
-            Cell::Air => [12, 12, 18, 255],
+            Cell::Air => [8, 8, 14, 255],
+
             Cell::Sand => {
-                let w = (self.extra as u16 * 3) % 256;
-                let r = (210 + (w as i16 - 128) / 5).clamp(170, 240) as u8;
-                let g = (190 + (w as i16 - 128) / 7).clamp(148, 218) as u8;
-                let b = (128 + (w as i16 - 128) / 11).clamp(88, 162) as u8;
+                // Realistic desert sand: warm golden with per-grain variation
+                // Uses 3 overlapping hue waves for natural randomness
+                let h1 = ((e as u16).wrapping_mul(197)) as u8;
+                let h2 = ((e as u16).wrapping_mul(53)) as u8;
+                let r = (215i16 + (h1 as i16 - 128) / 6 + (h2 as i16 - 128) / 14).clamp(178, 242) as u8;
+                let g = (192i16 + (h1 as i16 - 128) / 8 + (h2 as i16 - 128) / 16).clamp(155, 220) as u8;
+                let b = (132i16 + (h1 as i16 - 128) / 12 + (h2 as i16 - 128) / 20).clamp(95, 168) as u8;
                 [r, g, b, 255]
             }
+
             Cell::Gravel => {
-                let w = (self.extra as u16 * 5) % 256;
-                let r = (130 + (w as i16 - 128) / 8).clamp(105, 155) as u8;
-                let g = (115 + (w as i16 - 128) / 10).clamp(90, 140) as u8;
-                let b = (95 + (w as i16 - 128) / 12).clamp(72, 118) as u8;
+                // Dark rocky gravel: cool grey-brown with speckle
+                let h1 = ((e as u16).wrapping_mul(173)) as u8;
+                let h2 = ((e as u16).wrapping_mul(89)) as u8;
+                let speck = if h2 > 220 { 18i16 } else { 0 }; // occasional bright speckle
+                let r = (118i16 + (h1 as i16 - 128) / 9 + speck).clamp(92, 148) as u8;
+                let g = (108i16 + (h1 as i16 - 128) / 11 + speck).clamp(82, 138) as u8;
+                let b = (98i16 + (h1 as i16 - 128) / 13 + speck).clamp(72, 128) as u8;
                 [r, g, b, 255]
             }
+
             Cell::Water => {
-                let d = (self.extra as u16 * 7) % 64;
-                [30 + (d / 4) as u8, 80 + (d / 2) as u8, (185 + d / 3).min(240) as u8, 190]
+                // Deep translucent blue with subtle variation
+                let h = ((e as u16).wrapping_mul(131)) as u8;
+                let r = (25i16 + (h as i16 - 128) / 20).clamp(15, 45) as u8;
+                let g = (75i16 + (h as i16 - 128) / 10).clamp(55, 105) as u8;
+                let b = (195i16 + (h as i16 - 128) / 8).clamp(160, 230) as u8;
+                [r, g, b, 170]
             }
+
             Cell::Oil => {
-                let d = (self.extra as u16 * 3) % 32;
-                [45 + d as u8, 30 + (d / 2) as u8, 15 + (d / 3) as u8, 210]
+                // Dark viscous amber-brown, slightly iridescent
+                let h = ((e as u16).wrapping_mul(67)) as u8;
+                let irid = (h as i16 - 128).abs() / 40;
+                let r = (58i16 + (h as i16 - 128) / 14 + irid).clamp(38, 78) as u8;
+                let g = (38i16 + (h as i16 - 128) / 18).clamp(22, 54) as u8;
+                let b = (18i16 + (h as i16 - 128) / 24 + irid * 2).clamp(8, 38) as u8;
+                [r, g, b, 220]
             }
+
             Cell::Stone => {
-                let v = (self.extra as i16 - 128) / 10;
-                let b = (112 + v).clamp(92, 132) as u8;
-                [b, (b as u16 + 2).min(255) as u8, (b as u16 + 6).min(255) as u8, 255]
+                // Layered grey granite with mineral flecks
+                let h1 = ((e as u16).wrapping_mul(211)) as u8;
+                let h2 = ((e as u16).wrapping_mul(97)) as u8;
+                let fleck = if h2 > 235 { 22i16 } else if h2 < 20 { -12 } else { 0 };
+                let base = (118i16 + (h1 as i16 - 128) / 8 + fleck).clamp(85, 148) as u8;
+                [base, (base as i16 + 3).clamp(0, 255) as u8, (base as i16 + 8).clamp(0, 255) as u8, 255]
             }
+
             Cell::Fire => {
-                let f = self.extra as f32 / 120.0;
-                let r = (255.0 * f.min(1.0)) as u8;
-                let g = (210.0 * (f * 0.7).min(1.0)) as u8;
-                let b = (60.0 * (f * 0.3)) as u8;
-                [r.max(80), g, b, 255]
+                // Hot ember to bright flame gradient based on lifetime
+                let f = e as f32 / 120.0;
+                let f2 = f * f; // quadratic falloff
+                let r = (255.0 * f.min(1.0).max(0.4)) as u8;
+                let g = (60.0 + 180.0 * f2.min(1.0)) as u8;
+                let b = (15.0 + 45.0 * (f2 * f).min(1.0)) as u8;
+                [r, g, b, 255]
             }
+
             Cell::Steam => {
-                let f = self.extra as f32 / 80.0;
-                let a = (180.0 * f.clamp(0.0, 1.0)) as u8;
-                [205, 205, 215, a.max(25)]
+                // Wispy white with fade
+                let f = e as f32 / 80.0;
+                let h = ((e as u16).wrapping_mul(151)) as u8;
+                let tint = (h as i16 - 128) / 30;
+                let v = (210i16 + tint).clamp(195, 225) as u8;
+                let a = (160.0 * f.clamp(0.0, 1.0)) as u8;
+                [v, v, (v as i16 + 8).min(255) as u8, a.max(15)]
             }
+
             Cell::Acid => {
-                let f = self.extra as f32 / 100.0;
-                let g = (220.0 * f.clamp(0.3, 1.0)) as u8;
-                [40, g, 30, 200]
+                // Toxic neon green with pulsing glow based on life
+                let f = e as f32 / 100.0;
+                let pulse = ((e as f32 * 0.5).sin() * 0.5 + 0.5) * 0.15;
+                let r = (30.0 + 30.0 * (1.0 - f) + pulse * 60.0) as u8;
+                let g = (180.0 * f.clamp(0.25, 1.0) + pulse * 40.0).min(255.0) as u8;
+                let b = (20.0 + 15.0 * pulse) as u8;
+                [r, g, b, 205]
             }
-            Cell::Block => [55, 60, 78, 255],
+
+            Cell::Block => {
+                // Brushed dark metal
+                [48, 52, 68, 255]
+            }
         }
     }
 

@@ -6,8 +6,6 @@ struct Uniforms {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
-// --- Voxel instanced cube pipeline ---
-
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -39,34 +37,66 @@ fn vs_main(vert: VertexInput, inst: InstanceInput) -> VsOutput {
 @fragment
 fn fs_main(in: VsOutput) -> @location(0) vec4<f32> {
     let n = normalize(in.normal);
-
-    // Primary sun light
+    let col = in.color;
     let sun = normalize(uniforms.light_dir);
-    let sun_dot = max(dot(n, sun), 0.0);
 
-    // Fill light from below-left for softer look
-    let fill = normalize(vec3<f32>(-0.4, -0.3, 0.6));
+    // Detect material type from color heuristics
+    let is_fire = col.r > 0.5 && col.g < col.r * 0.9 && col.b < 0.25;
+    let is_water = col.b > 0.5 && col.r < 0.2 && col.a < 0.85;
+    let is_acid = col.g > 0.5 && col.r < 0.25 && col.b < 0.2;
+
+    // Sun light with hemisphere wrap for softer shadows
+    let sun_wrap = (dot(n, sun) + 0.3) / 1.3;
+    let sun_dot = max(sun_wrap, 0.0);
+
+    // Fill light from opposite side
+    let fill = normalize(vec3<f32>(-0.5, 0.2, -0.4));
     let fill_dot = max(dot(n, fill), 0.0);
 
-    // Sky light from above
-    let sky_dot = max(dot(n, vec3<f32>(0.0, 1.0, 0.0)), 0.0);
+    // Sky light (hemisphere)
+    let sky = 0.5 + 0.5 * n.y;
 
-    let ambient = 0.18;
-    let sun_contrib = sun_dot * 0.55;
-    let fill_contrib = fill_dot * 0.12;
-    let sky_contrib = sky_dot * 0.15;
-    let lighting = ambient + sun_contrib + fill_contrib + sky_contrib;
+    // Combine lighting
+    var ambient = 0.12;
+    var sun_str = 0.52;
+    var fill_str = 0.14;
+    var sky_str = 0.18;
 
-    // Height-based darkening for grounded feel
-    let height_fade = clamp(in.world_pos.y / 128.0, 0.0, 1.0);
-    let height_boost = 0.85 + height_fade * 0.15;
+    // Fire is emissive -- minimal lighting influence
+    if is_fire {
+        ambient = 0.7;
+        sun_str = 0.15;
+        fill_str = 0.05;
+        sky_str = 0.1;
+    }
 
-    // Subtle distance fog
-    let dist = length(in.clip_position.xyz);
-    let fog_factor = clamp(1.0 - dist / 600.0, 0.6, 1.0);
+    let lighting = ambient + sun_dot * sun_str + fill_dot * fill_str + sky * sky_str;
 
-    let lit_color = in.color.rgb * lighting * height_boost * fog_factor;
-    return vec4<f32>(lit_color, in.color.a);
+    // Specular highlight for water/acid surfaces
+    var spec = 0.0;
+    if is_water || is_acid {
+        let view_dir = normalize(-in.world_pos);
+        let half_vec = normalize(sun + view_dir);
+        let spec_dot = max(dot(n, half_vec), 0.0);
+        spec = pow(spec_dot, 32.0) * 0.35;
+    }
+
+    // Height-based subtle darkening
+    let h_frac = clamp(in.world_pos.y / 128.0, 0.0, 1.0);
+    let h_boost = 0.88 + h_frac * 0.12;
+
+    // Depth fade
+    let depth = in.clip_position.z / in.clip_position.w;
+    let fog = clamp(1.0 - depth * 0.6, 0.55, 1.0);
+
+    var final_color = col.rgb * lighting * h_boost * fog + vec3<f32>(spec);
+
+    // Fire glow boost
+    if is_fire {
+        final_color = final_color * 1.3;
+    }
+
+    return vec4<f32>(clamp(final_color, vec3<f32>(0.0), vec3<f32>(1.0)), col.a);
 }
 
 // --- Grid line pipeline ---

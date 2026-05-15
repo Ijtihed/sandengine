@@ -600,9 +600,11 @@ impl App {
         let ui_state = &mut self.ui_state;
         let selected_mat = &mut self.selected_material;
 
+        let mut ui_output = ui::UiOutput { mode_switch: None, toggle_pause: false };
+
         #[allow(deprecated)]
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
-            ui::draw(
+            ui_output = ui::draw(
                 ctx,
                 mode,
                 paused,
@@ -618,6 +620,14 @@ impl App {
                 selected_mat,
             );
         });
+
+        // Handle UI mode switch
+        if let Some(new_mode) = ui_output.mode_switch {
+            self.mode = new_mode;
+        }
+        if ui_output.toggle_pause {
+            self.paused = !self.paused;
+        }
 
         // Write back timeline cursor
         match self.mode {
